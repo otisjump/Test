@@ -1,90 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Simple Code Editor</title>
-<style>
-  body {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    font-family: monospace;
-  }
-  .editor {
-    display: flex;
-    background: #1e1e1e;
-    color: #ddd;
-    height: 30%;
-  }
-  .lines {
-    background: #2b2b2b;
-    padding: 5px;
-    text-align: right;
-    user-select: none;
-    color: #777;
-  }
-  textarea {
-    flex: 1;
-    border: none;
-    padding: 5px;
-    background: transparent;
-    color: inherit;
-    resize: none;
-    outline: none;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .run-btn, .clear-btn {
-    position: absolute;
-    top: 10px;
-    padding: 6px 12px;
-    color: white;
-    border: none;
-    cursor: pointer;
-  }
-  .run-btn { left: 10px; background: #4caf50; }
-  .clear-btn { left: 100px; background: #f44336; }
-  iframe {
-    width: 100%;
-    height: 60%;
-    border: none;
-    margin-top: 10px;
-  }
-</style>
-</head>
-<body>
-<button class="run-btn" onclick="runCode()">Run</button>
-<button class="clear-btn" onclick="clearCode()">Clear</button>
-
-<div class="editor">
-  <div class="lines" id="lineNumbers">1</div>
-  <textarea id="code" oninput="updateLines()" spellcheck="false"></textarea>
-</div>
-
-<iframe id="preview"></iframe>
-
 <script>
 const codeArea = document.getElementById("code");
 const preview = document.getElementById("preview");
+const panel = document.getElementById("controlPanel");
+
+let originalCode = '';
+let whiteCirclePositions = [];
+let sliderValues = [];
 
 function runCode() {
-  preview.srcdoc = codeArea.value;
+  originalCode = codeArea.value;
+  preview.srcdoc = originalCode;
+  panel.style.display = 'flex';
+  panel.innerHTML = '<p><strong>Adjustable values appear after Run</strong></p>';
+  whiteCirclePositions = [];
+  sliderValues = [];
+
+  const lines = originalCode.split('\n');
+  lines.forEach((line, lineIndex) => {
+    // Only check lines with white circles
+    if (line.includes('class="white"')) {
+      const regex = /(\d+\.?\d*)/g;
+      let match;
+      while ((match = regex.exec(line)) !== null) {
+        whiteCirclePositions.push({
+          lineIndex: lineIndex,
+          startIndex: match.index,
+          value: parseFloat(match[1])
+        });
+        sliderValues.push(parseFloat(match[1]));
+      }
+    }
+  });
+
+  // Create sliders for white circles only
+  whiteCirclePositions.forEach((num, index) => {
+    const div = document.createElement('div');
+    div.className = 'control';
+
+    const label = document.createElement('label');
+    label.innerText = 'White Circle Line ' + (num.lineIndex + 1);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = 0;
+    slider.max = 500;
+    slider.value = sliderValues[index];
+
+    slider.oninput = () => {
+      sliderValues[index] = parseFloat(slider.value);
+      updatePreview();
+    };
+
+    div.appendChild(label);
+    div.appendChild(slider);
+    panel.appendChild(div);
+  });
+}
+
+function updatePreview() {
+  let updatedCode = originalCode;
+  let count = 0;
+  // Replace only numbers inside white circles
+  updatedCode = updatedCode.replace(/(\d+\.?\d*)/g, (match, p1, offset, string) => {
+    // Check if this number corresponds to a white circle
+    if (whiteCirclePositions[count] && string.includes('class="white"')) {
+      const val = sliderValues[count];
+      count++;
+      return val;
+    }
+    return match;
+  });
+  preview.srcdoc = updatedCode;
 }
 
 function clearCode() {
   codeArea.value = '';
   updateLines();
   preview.srcdoc = '';
+  panel.style.display = 'none';
+  panel.innerHTML = '<p><strong>Adjustable values appear after Run</strong></p>';
+  whiteCirclePositions = [];
+  sliderValues = [];
 }
 
 function updateLines() {
+  const code = codeArea.value;
   const lineNumbers = document.getElementById("lineNumbers");
-  const lineCount = codeArea.value.split("\n").length;
+  const lineCount = code.split("\n").length;
   lineNumbers.innerText = Array.from({length: lineCount}, (_, i) => i + 1).join("\n");
 }
 
 updateLines();
 </script>
-</body>
-</html>
