@@ -4,41 +4,39 @@ const preview = document.getElementById("preview");
 const panel = document.getElementById("controlPanel");
 
 let originalCode = '';
-let whiteCirclePositions = [];
-let sliderValues = [];
+let numberPositions = [];
+let sliderValues = []; // Keep current slider values
+let sliderInputs = []; // Keep reference to slider elements
 
 function runCode() {
   originalCode = codeArea.value;
   preview.srcdoc = originalCode;
   panel.style.display = 'flex';
   panel.innerHTML = '<p><strong>Adjustable values appear after Run</strong></p>';
-  whiteCirclePositions = [];
+  numberPositions = [];
   sliderValues = [];
+  sliderInputs = [];
 
   const lines = originalCode.split('\n');
   lines.forEach((line, lineIndex) => {
-    // Only check lines with white circles
-    if (line.includes('class="white"')) {
-      const regex = /(\d+\.?\d*)/g;
-      let match;
-      while ((match = regex.exec(line)) !== null) {
-        whiteCirclePositions.push({
-          lineIndex: lineIndex,
-          startIndex: match.index,
-          value: parseFloat(match[1])
-        });
-        sliderValues.push(parseFloat(match[1]));
-      }
+    const regex = /(\d+\.?\d*)/g;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      numberPositions.push({
+        lineIndex: lineIndex,
+        startIndex: match.index,
+        value: parseFloat(match[1])
+      });
+      sliderValues.push(parseFloat(match[1])); // initial value
     }
   });
 
-  // Create sliders for white circles only
-  whiteCirclePositions.forEach((num, index) => {
+  numberPositions.forEach((num, index) => {
     const div = document.createElement('div');
     div.className = 'control';
 
     const label = document.createElement('label');
-    label.innerText = 'White Circle Line ' + (num.lineIndex + 1);
+    label.innerText = 'Line ' + (num.lineIndex + 1);
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -54,23 +52,58 @@ function runCode() {
     div.appendChild(label);
     div.appendChild(slider);
     panel.appendChild(div);
+    sliderInputs.push(slider);
   });
+
+  // After rendering, add click listeners in iframe
+  preview.onload = () => {
+    const doc = preview.contentDocument || preview.contentWindow.document;
+    // Add a unique data-index to elements that correspond to sliders
+    let idx = 0;
+    doc.querySelectorAll('*').forEach(el => {
+      // Only clickable elements with numbers (like white circles)
+      if (el.style.width || el.style.height) {
+        el.setAttribute('data-slider-index', idx);
+        el.addEventListener('click', () => {
+          highlightSlider(idx);
+        });
+        idx++;
+      }
+    });
+  };
+}
+
+function highlightSlider(index) {
+  // Remove previous highlights
+  sliderInputs.forEach(slider => slider.style.border = '');
+  if (sliderInputs[index]) {
+    sliderInputs[index].style.border = '2px solid #4caf50';
+    sliderInputs[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 function updatePreview() {
   let updatedCode = originalCode;
   let count = 0;
-  // Replace only numbers inside white circles
-  updatedCode = updatedCode.replace(/(\d+\.?\d*)/g, (match, p1, offset, string) => {
-    // Check if this number corresponds to a white circle
-    if (whiteCirclePositions[count] && string.includes('class="white"')) {
-      const val = sliderValues[count];
-      count++;
-      return val;
-    }
-    return match;
+  updatedCode = updatedCode.replace(/(\d+\.?\d*)/g, () => {
+    const val = sliderValues[count];
+    count++;
+    return val;
   });
   preview.srcdoc = updatedCode;
+
+  // Re-add click listeners
+  preview.onload = () => {
+    const doc = preview.contentDocument || preview.contentWindow.document;
+    let idx = 0;
+    doc.querySelectorAll('*').forEach(el => {
+      if (el.style.width || el.style.height) {
+        el.setAttribute('data-slider-index', idx);
+        el.addEventListener('click', () => highlightSlider(idx));
+        idx++;
+      }
+    });
+  };
 }
 
 function clearCode() {
@@ -79,8 +112,9 @@ function clearCode() {
   preview.srcdoc = '';
   panel.style.display = 'none';
   panel.innerHTML = '<p><strong>Adjustable values appear after Run</strong></p>';
-  whiteCirclePositions = [];
+  numberPositions = [];
   sliderValues = [];
+  sliderInputs = [];
 }
 
 function updateLines() {
